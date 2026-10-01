@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mini CSGO — Cyber Arena</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030307;color:#fff;font-family:Arial,sans-serif}
+canvas{display:block;width:100%;height:100%;background:#070812}
+#menu{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#14202c 0,#070811 45%,#020205 100%);z-index:5}
+.panel{width:min(650px,90vw);padding:42px;border:1px solid #00f6ff55;background:#080b14e8;box-shadow:0 0 70px #00f6ff12}
+.logo{font-size:clamp(48px,10vw,92px);font-weight:900;letter-spacing:-5px}.logo i{font-style:normal;color:#00f6ff;text-shadow:0 0 25px #00f6ff}.logo b{color:#ff27d9}
+.sub{color:#9299aa;letter-spacing:4px;margin:12px 0 35px}
+button{border:0;padding:17px 34px;background:#00f6ff;color:#020207;font-size:17px;font-weight:900;cursor:pointer;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+button:hover{filter:brightness(1.2);box-shadow:0 0 25px #00f6ff66}
+.info{margin-top:25px;color:#72798b;font-size:13px;line-height:1.7}
+#hud{position:fixed;inset:0;pointer-events:none;display:none}
+.top{position:absolute;top:18px;left:50%;transform:translateX(-50%);font-weight:900;letter-spacing:2px;text-shadow:0 2px 4px #000}
+.left{position:absolute;left:20px;bottom:20px;background:#05060ccc;padding:13px 18px;border-left:3px solid #00f6ff}
+.right{position:absolute;right:20px;bottom:20px;background:#05060ccc;padding:13px 18px;border-right:3px solid #ff27d9;text-align:right}
+#cross{position:absolute;left:50%;top:50%;width:20px;height:20px;transform:translate(-50%,-50%)}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff;box-shadow:0 0 5px #00f6ff}
+#cross:before{width:2px;height:20px;left:9px}.cross2{width:20px;height:2px;position:absolute;top:9px;background:#fff;box-shadow:0 0 5px #00f6ff}
+#msg{position:absolute;top:46%;left:50%;transform:translate(-50%,-50%);font-size:35px;font-weight:900;text-shadow:0 0 25px #00f6ff;display:none}
+
+#mobile{display:none;position:fixed;inset:0;pointer-events:none;z-index:4}
+.stick{position:absolute;width:125px;height:125px;border:2px solid #00f6ff66;border-radius:50%;background:#00f6ff0d;pointer-events:auto;touch-action:none}
+.knob{position:absolute;width:55px;height:55px;left:33px;top:33px;border-radius:50%;background:#00f6ff66}
+#moveStick{left:25px;bottom:30px}#aimStick{right:25px;bottom:30px}
+.mobbtn{position:absolute;border:1px solid #00f6ff99;background:#06141acc;color:#fff;font-weight:900;border-radius:50%;pointer-events:auto;touch-action:none}
+#fire{right:175px;bottom:55px;width:75px;height:75px}#reload{right:110px;bottom:165px;width:58px;height:58px;font-size:11px}
+@media (pointer:coarse){#mobile{display:block}.info{font-size:12px}}
+</style>
+</head>
+<body>
+<div id="menu">
+ <div class="panel">
+  <div class="logo">MINI <i>CS</i><b>GO</b></div>
+  <div class="sub">CYBER ARENA // BROWSER EDITION</div>
+  <button id="play">▶ ИГРАТЬ</button>
+  <div class="info">WASD — движение &nbsp; • &nbsp; мышь — прицел<br>ЛКМ — стрелять &nbsp; • &nbsp; R — перезарядка &nbsp; • &nbsp; ESC — меню</div>
+ </div>
+</div>
+<canvas id="game"></canvas>
+<div id="mobile">
+ <div class="stick" id="moveStick"><div class="knob"></div></div>
+ <div class="stick" id="aimStick"><div class="knob"></div></div>
+ <button class="mobbtn" id="fire">FIRE</button>
+ <button class="mobbtn" id="reload">RELOAD</button>
+</div>
+<div id="hud">
+ <div class="top" id="round">ROUND 01 &nbsp; // &nbsp; ELIMINATE</div>
+ <div id="cross"><span class="cross2"></span></div>
+ <div class="left">HP <strong id="hp">100</strong><br>ARMOR <strong id="armor">100</strong></div>
+ <div class="right">AMMO <strong id="ammo">30</strong> / 90<br>ENEMIES <strong id="enemies">5</strong></div>
+ <div id="msg"></div>
+</div>
+<script>
+const c=document.getElementById('game'),x=c.getContext('2d');
+let W,H,playing=false,keys={},mouse={x:0,y:0,down:false},p,bots=[],bullets=[],last=0,score=0;
+function resize(){W=c.width=innerWidth;H=c.height=innerHeight} addEventListener('resize',resize);resize();
+function reset(){
+ p={x:W/2,y:H/2,a:0,hp:100,armor:100,ammo:30,reserve:90,reload:0,cool:0};
+ bots=[]; bullets=[]; score=0;
+ for(let i=0;i<5;i++) bots.push({x:120+Math.random()*(W-240),y:100+Math.random()*(H-200),hp:100,cd:Math.random()*1.5});
+}
+function start(){document.getElementById('menu').style.display='none';document.getElementById('hud').style.display='block';playing=true;reset();c.requestPointerLock?.();last=performance.now();requestAnimationFrame(loop)}
+document.getElementById('play').onclick=start;
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key.toLowerCase()==='r')reload();if(e.key==='Escape'&&playing){playing=false;document.exitPointerLock?.();document.getElementById('hud').style.display='none';document.getElementById('menu').style.display='grid'}});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+c.addEventListener('mousemove',e=>{if(document.pointerLockElement===c)p.a+=e.movementX*.003});
+c.addEventListener('mousedown',e=>{if(e.button===0)mouse.down=true});
+addEventListener('mouseup',e=>{if(e.button===0)mouse.down=false});
+function touchStick(id,type){
+ const el=document.getElementById(id),knob=el.querySelector('.knob'); let active=null;
+ el.addEventListener('touchstart',e=>{e.preventDefault();active=e.changedTouches[0].identifier});
+ el.addEventListener('touchmove',e=>{e.preventDefault();let t=[...e.touches].find(z=>z.identifier===active);if(!t)return;
+  let r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=t.clientX-cx,dy=t.clientY-cy,max=43,l=Math.hypot(dx,dy);
+  if(l>max){dx=dx/l*max;dy=dy/l*max} knob.style.transform=`translate(${dx}px,${dy}px)`;
+  if(type==='move'){keys.w=dy<-10;keys.s=dy>10;keys.a=dx<-10;keys.d=dx>10}
+  else p.a+=dx*.012;
+ });
+ el.addEventListener('touchend',e=>{e.preventDefault();knob.style.transform='';if(type==='move')keys.w=keys.s=keys.a=keys.d=false;active=null});
+}
+touchStick('moveStick','move');touchStick('aimStick','aim');
+document.getElementById('fire').addEventListener('touchstart',e=>{e.preventDefault();mouse.down=true});
+document.getElementById('fire').addEventListener('touchend',e=>{e.preventDefault();mouse.down=false});
+document.getElementById('reload').addEventListener('touchstart',e=>{e.preventDefault();reload()});
+function reload(){if(p.reload<=0&&p.ammo<30&&p.reserve>0)p.reload=1.3}
+function shoot(){
+ if(p.reload>0||p.cool>0)return;
+ if(p.ammo<=0){reload();return}
+ p.ammo--;p.cool=.13;
+ let best=null,bd=9999;
+ for(const b of bots){
+  let dx=b.x-p.x,dy=b.y-p.y,ang=Math.atan2(dy,dx),d=Math.hypot(dx,dy);
+  let da=Math.atan2(Math.sin(ang-p.a),Math.cos(ang-p.a));
+  if(Math.abs(da)<.12&&d<900&&d<bd){best=b;bd=d}
+ }
+ if(best&&Math.random()<.88){best.hp-=50;if(best.hp<=0){score++;bots=bots.filter(z=>z!==best)}}
+}
+function update(dt){
+ let sp=260*dt,dx=0,dy=0;
+ if(keys.w)dy-=1;if(keys.s)dy+=1;if(keys.a)dx-=1;if(keys.d)dx+=1;
+ if(dx||dy){let l=Math.hypot(dx,dy);dx/=l;dy/=l;p.x+=dx*sp;p.y+=dy*sp}
+ p.x=Math.max(35,Math.min(W-35,p.x));p.y=Math.max(70,Math.min(H-35,p.y));
+ if(mouse.down)shoot();
+ if(p.cool>0)p.cool-=dt;
+ if(p.reload>0){p.reload-=dt;if(p.reload<=0){let n=Math.min(30-p.ammo,p.reserve);p.ammo+=n;p.reserve-=n}}
+ for(const b of bots){
+  let dx=p.x-b.x,dy=p.y-b.y,d=Math.hypot(dx,dy);
+  if(d>160){b.x+=dx/d*35*dt;b.y+=dy/d*35*dt}
+  b.cd-=dt;
+  if(d<520&&b.cd<=0){b.cd=1.1+Math.random();let hit=Math.random()<.28;if(hit)p.hp-=12}
+ }
+ if(p.hp<=0)end('YOU DIED');
+ if(bots.length===0)end('ROUND WIN');
+ document.getElementById('hp').textContent=Math.max(0,Math.ceil(p.hp));
+ document.getElementById('ammo').textContent=p.reload>0?'RELOAD':p.ammo;
+ document.getElementById('enemies').textContent=bots.length;
+}
+function end(t){playing=false;document.exitPointerLock?.();let m=document.getElementById('msg');m.textContent=t+'  •  '+score+' KILLS';m.style.display='block';setTimeout(()=>{m.style.display='none';document.getElementById('hud').style.display='none';document.getElementById('menu').style.display='grid'},1800)}
+function draw(){
+ x.clearRect(0,0,W,H);
+ let g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#090d1b');g.addColorStop(1,'#020307');x.fillStyle=g;x.fillRect(0,0,W,H);
+ x.strokeStyle='#101b2b';x.lineWidth=1;
+ for(let i=0;i<W;i+=45){x.beginPath();x.moveTo(i,70);x.lineTo(i,H);x.stroke()}
+ for(let j=70;j<H;j+=45){x.beginPath();x.moveTo(0,j);x.lineTo(W,j);x.stroke()}
+ // neon barriers
+ x.strokeStyle='#00f6ff55';x.lineWidth=4;[[80,150,W-80,150],[80,H-100,W-80,H-100]].forEach(a=>{x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(a[2],a[3]);x.stroke()});
+ for(const b of bots){x.save();x.translate(b.x,b.y);x.fillStyle='#ff265f';x.shadowColor='#ff265f';x.shadowBlur=18;x.fillRect(-14,-20,28,40);x.fillStyle='#151522';x.fillRect(-10,-30,20,12);x.restore()}
+ x.save();x.translate(p.x,p.y);x.rotate(p.a);x.fillStyle='#00f6ff';x.shadowColor='#00f6ff';x.shadowBlur=20;x.beginPath();x.arc(0,0,17,0,7);x.fill();x.fillStyle='#ddd';x.fillRect(8,-4,28,8);x.restore();
+}
+function loop(t){if(!playing)return;let dt=Math.min(.033,(t-last)/1000);last=t;update(dt);draw();requestAnimationFrame(loop)}
+draw();
+</script>
+</body>
+</html>
